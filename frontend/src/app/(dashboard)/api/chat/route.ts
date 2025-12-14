@@ -11,7 +11,7 @@ export async function POST(req: Request) {
         "Content-Type": "application/json",
         Authorization: `Bearer ${
           process.env.OPENROUTER_API_KEY ||
-          "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" //in real product dont use key in here
+          "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" //in real product dont use key in here
         }`, // server-side only
       },
       body: JSON.stringify(body),
