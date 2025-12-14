@@ -136,38 +136,42 @@ export default function ChatPage() {
         <CardDescription className="text-sm mb-1">
           Chat with an AI assistant.
         </CardDescription>
-        <div className="flex gap-2 items-center">
-          <p className="text-sm">AI Model</p>
-          <Select value={typeFilter} onValueChange={setTypeFilter}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Filter by Type" />
-            </SelectTrigger>
-            <SelectContent>
-              {dropdownOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label.replace("_", " ")}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="flex flex-wrap gap-4">
+          <div className="flex gap-2 items-center">
+            <p className="text-sm">AI Model</p>
+            <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Filter by Type" />
+              </SelectTrigger>
+              <SelectContent>
+                {dropdownOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label.replace("_", " ")}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-          {!isLoading && (
-            <>
-              <p className="text-sm pl-5">Document</p>
-              <Select value={selectedDoc} onValueChange={setSelectedDoc}>
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Select Document" />
-                </SelectTrigger>
-                <SelectContent style={{ height: 300 }}>
-                  {(documents ?? []).map((option: any, i) => (
-                    <SelectItem key={i} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </>
-          )}
+          <div className="flex gap-2 items-center">
+            {!isLoading && (
+              <>
+                <p className="text-sm">Document</p>
+                <Select value={selectedDoc} onValueChange={setSelectedDoc}>
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="Select Document" />
+                  </SelectTrigger>
+                  <SelectContent style={{ height: 300 }}>
+                    {(documents ?? []).map((option: any, i) => (
+                      <SelectItem key={i} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </>
+            )}
+          </div>
         </div>
       </CardHeader>
 
