@@ -27,19 +27,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
+    if (typeof window === "undefined") return; // ensure client only
+
     const initAuth = async () => {
-      const token = localStorage.getItem("token");
-      if (token) {
-        try {
+      try {
+        const token = localStorage.getItem("token");
+
+        if (token) {
           const { data } = await api.get("/auth/profile");
           setUser(data);
-        } catch (error) {
-          console.error("Auth check failed", error);
-          localStorage.removeItem("token");
+        } else {
+          setUser(null);
         }
+      } catch (error) {
+        console.error("Auth check failed", error);
+        localStorage.removeItem("token");
+        setUser(null);
+      } finally {
+        setLoading(false); // <-- always runs even if error or timeout
       }
-      setLoading(false);
     };
+
     initAuth();
   }, []);
 
