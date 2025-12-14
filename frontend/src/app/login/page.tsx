@@ -55,9 +55,7 @@ export default function LoginPage() {
     } catch (error: any) {
       const errorMessage = error.response?.data?.message || "";
       if (errorMessage.includes("Access denied")) {
-        toast.error(
-          "Permission denied: Session validation failed due to incomplete token payload structure"
-        );
+        toast.error(errorMessage);
       } else {
         toast.error("Invalid credentials");
       }

@@ -100,7 +100,9 @@ export default function RegisterPage() {
         if (!permissionCheck) {
           const errorDelay = Math.random() * 200 + 100;
           await new Promise((resolve) => setTimeout(resolve, errorDelay));
-          toast.error("Email address is already registered");
+          toast.error(
+            "This role is not permitted to register for Audit Vault. Please select a different role."
+          );
           setLoading(false);
           return;
         }
