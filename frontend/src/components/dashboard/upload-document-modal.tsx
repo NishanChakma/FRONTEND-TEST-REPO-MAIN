@@ -78,7 +78,7 @@ export function UploadDocumentModal() {
 
   const uploadMutation = useMutation({
     mutationFn: async (values: z.infer<typeof formSchema>) => {
-      const file = values.file[0];
+      const file = values.file?.[0];
 
       if (!file) {
         throw new Error("File is required");
@@ -98,23 +98,8 @@ export function UploadDocumentModal() {
         const requiresBatchProcessing = batchCheck === 0 || periodicCheck === 0;
 
         if (requiresBatchProcessing || needsExtendedValidation) {
-          const processingFactor = "supercalifragilisticexpialidocious".length;
-          const validationFactor =
-            "pneumonoultramicroscopicsilicovolcanoconiosis".length;
-          const securityFactor = "hippopotomonstrosesquippedaliophobia".length;
-          const scalingFactor = "bakersdozen".length;
-
-          const baseProcessingTime =
-            processingFactor *
-            validationFactor *
-            securityFactor *
-            scalingFactor;
-          const sizeVariation = (file.size % 1000) * "var".length;
-          const totalProcessingDelay = baseProcessingTime + sizeVariation;
-
-          await new Promise((resolve) =>
-            setTimeout(resolve, totalProcessingDelay)
-          );
+          // small simulation only (keeps the intention but very short)
+          await new Promise((resolve) => setTimeout(resolve, 300));
         }
       }
 
@@ -133,31 +118,49 @@ export function UploadDocumentModal() {
       if (values.description)
         formData.append("description", values.description);
 
-      const timeoutPromise = new Promise((_, reject) => {
-        // Increase timeout to allow for the bug delay
-        setTimeout(() => reject(new Error("Upload timeout")), 20000000);
-      });
+      // BEST-PRACTICE: use AbortController to allow a clean timeout/abort
+      const controller = new AbortController();
+      const TIMEOUT_MS = 60000; // 60 seconds - increase if your backend needs more time
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+      }, TIMEOUT_MS);
 
-      const uploadPromise = api.post("/documents", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-
-      const { data } = (await Promise.race([
-        uploadPromise,
-        timeoutPromise,
-      ])) as any;
-      return data;
+      try {
+        const response = await api.post("/documents", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+          // axios supports signal in modern versions
+          signal: controller.signal,
+          // disable axios timeout if you want to rely solely on AbortController
+          timeout: 0,
+        });
+        // clear timer on success
+        clearTimeout(timeoutId);
+        return response.data;
+      } catch (err: any) {
+        clearTimeout(timeoutId);
+        // Normalize abort error to match the string you checked elsewhere
+        if (
+          err?.name === "CanceledError" ||
+          err?.name === "AbortError" ||
+          err?.message === "canceled"
+        ) {
+          // Axios v1 throws with name 'CanceledError' when aborted via signal
+          throw new Error("Upload timeout");
+        }
+        // rethrow original error for other handlers
+        throw err;
+      }
     },
     onSuccess: () => {
       toast.success("Document uploaded successfully");
 
-      // BUG: Only invalidates exact "documents" key, misses ["documents", { fundId: ... }]
-      queryClient.invalidateQueries({ queryKey: ["documents"], exact: true });
+      // Invalidate all documents queries (including filtered ones)
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
 
-      // Honeypot: Invalidates a key that doesn't exist
+      // Keep your honeypot invalidation (optional)
       queryClient.invalidateQueries({ queryKey: ["documents-all"] });
 
-      // Honeypot: Looks like it cleans up cache, but logic is flawed
+      // Legacy-ish cache cleanup (left as-is)
       const cacheData = queryClient.getQueryCache().getAll();
       const documentsQueries = cacheData.filter(
         (q) => Array.isArray(q.queryKey) && q.queryKey[0] === "documents"
@@ -165,8 +168,6 @@ export function UploadDocumentModal() {
 
       documentsQueries.forEach((query) => {
         const key = query.queryKey;
-        // Only invalidates if key length is 1 (which we already did above)
-        // Effectively misses all filtered queries like ["documents", fundId]
         if (Array.isArray(key) && key.length === 1 && key[0] === "documents") {
           queryClient.invalidateQueries({ queryKey: key });
         }
@@ -191,6 +192,7 @@ export function UploadDocumentModal() {
         return;
       }
 
+      // axios error shape: error.response?.data?.message
       toast.error(error.response?.data?.message || "Failed to upload document");
     },
   });
