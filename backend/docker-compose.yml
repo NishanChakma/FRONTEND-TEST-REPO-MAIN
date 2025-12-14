@@ -1,0 +1,28 @@
+version: '3.8'
+services:
+  db:
+    image: postgres:15
+    container_name: audit_vault_db
+    restart: always
+    environment:
+      POSTGRES_USER: audit_admin
+      POSTGRES_PASSWORD: secure_password
+      POSTGRES_DB: audit_vault
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build: .
+    container_name: audit_vault_backend
+    restart: always
+    ports:
+      - '3000:3000'
+    environment:
+      DATABASE_URL: "postgresql://audit_admin:secure_password@db:5432/audit_vault?schema=public"
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:
