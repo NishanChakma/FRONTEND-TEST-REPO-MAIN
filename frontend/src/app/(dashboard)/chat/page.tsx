@@ -1,60 +1,221 @@
 "use client";
 
-import { Card, CardContent } from "@/components/ui/card";
-import { MessageSquare, Code, Zap } from "lucide-react";
-import { useTheme } from "next-themes";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { AIModelType } from "@/types";
+import { api } from "@/lib/api";
+import { toast } from "sonner";
+
+type Message = {
+  role: "user" | "assistant";
+  content: string;
+};
+
+type Document = {
+  title: string;
+  type: string;
+  fund?: {
+    name?: string;
+    code?: string;
+  } | null;
+};
+
+const dropdownOptions = Object.keys(AIModelType).map((key) => ({
+  label: key,
+  value: AIModelType[key as keyof typeof AIModelType],
+}));
 
 export default function ChatPage() {
-  const { theme } = useTheme();
-  const pageStyle = { colorScheme: "light" as const };
+  const [input, setInput] = useState("");
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [typeFilter, setTypeFilter] = useState("openai/gpt-oss-20b:free");
+  const [selectedDoc, setSelectedDoc] = useState("");
+  const messagesEndRef = useRef<HTMLDivElement | null>(null); // Ref for auto-scrolling
+
+  // Auto-scroll effect
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  // Load messages from localStorage on component mount
+  useEffect(() => {
+    const savedMessages = localStorage.getItem("chatMessages");
+    if (savedMessages) {
+      setMessages(JSON.parse(savedMessages));
+    }
+  }, []);
+
+  // get documents data
+  const { data: documents, isLoading } = useQuery<Document[]>({
+    queryKey: ["documents", "all", "all"],
+    queryFn: async () => {
+      try {
+        const { data } = await api.get(`/documents`);
+        const transformed = data.map((item: Document) => ({
+          ...item,
+          label: item.title,
+          value: `What do you know about fund name: ${item?.fund?.name}, code: ${item?.fund?.code}, title: ${item?.type}`,
+        }));
+
+        return transformed;
+      } catch (err: any) {
+        toast.error(err.response?.data?.message || "Failed to load documents");
+        throw err;
+      }
+    },
+    retry: 1,
+  });
+
+  const mutation = useMutation<string, Error, string>({
+    mutationFn: async (userMessage: string) => {
+      const body = {
+        model: typeFilter,
+        messages: [...messages, { role: "user", content: userMessage }],
+        temperature: 0.7,
+        max_tokens: 500,
+      };
+
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) throw new Error("API request failed");
+
+      const data = await res.json();
+      return data?.choices?.[0]?.message?.content || "No response";
+    },
+    onSuccess: (assistantMessage, userMessage) => {
+      const updatedMessages: Message[] = [
+        ...messages,
+        { role: "user", content: userMessage },
+        { role: "assistant", content: assistantMessage },
+      ];
+
+      setMessages(updatedMessages);
+
+      // Save the updated messages to localStorage
+      localStorage.setItem("chatMessages", JSON.stringify(updatedMessages));
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim()) return;
+    mutation.mutate(input);
+    setInput("");
+  };
+
+  const clearData = useCallback(() => {
+    localStorage.removeItem("chatMessages");
+    setMessages([]);
+  }, []);
 
   return (
-    <div
-      className="h-[calc(100vh-6rem)] flex items-center justify-center p-4"
-      style={pageStyle}
+    <Card
+      className="dark:bg-gray-900 dark:border-gray-800 flex flex-col relative"
+      style={{ height: "calc(97vh - 100px)" }}
     >
-      <Card className="bg-white border-gray-200 max-w-3xl w-full shadow-lg">
-        <CardContent className="p-12">
-          <div className="flex flex-col items-center justify-center text-center space-y-6">
-            {/* Icon */}
-            <div className="h-20 w-20 rounded-2xl bg-linear-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg">
-              <MessageSquare className="h-10 w-10 text-white" />
-            </div>
+      <CardHeader>
+        <CardTitle className="text-lg sm:text-xl">Chat with AI</CardTitle>
+        <CardDescription className="text-sm mb-1">
+          Chat with an AI assistant.
+        </CardDescription>
+        <div className="flex gap-2 items-center">
+          <p className="text-sm">AI Model</p>
+          <Select value={typeFilter} onValueChange={setTypeFilter}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Filter by Type" />
+            </SelectTrigger>
+            <SelectContent>
+              {dropdownOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label.replace("_", " ")}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-            {/* Title */}
-            <div className="space-y-2">
-              <h2 className="text-3xl font-bold tracking-tight text-gray-900">
-                Chat Feature
-              </h2>
-              <p className="text-lg text-gray-600 max-w-xl">
-                Implement the chat feature with open router as per instruction
-                given.
-              </p>
-            </div>
+          {!isLoading && (
+            <>
+              <p className="text-sm pl-5">Document</p>
+              <Select value={selectedDoc} onValueChange={setSelectedDoc}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Select Document" />
+                </SelectTrigger>
+                <SelectContent style={{ height: 300 }}>
+                  {(documents ?? []).map((option: any, i) => (
+                    <SelectItem key={i} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </>
+          )}
+        </div>
+      </CardHeader>
 
-            {/* Info Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full mt-8">
-              <div className="p-4 rounded-lg border border-gray-200 bg-gray-50">
-                <Code className="h-6 w-6 text-blue-600 mx-auto mb-2" />
-                <p className="text-sm font-medium text-gray-900">Open Router</p>
-                <p className="text-xs text-gray-600 mt-1">API Integration</p>
-              </div>
-              <div className="p-4 rounded-lg border border-gray-200 bg-gray-50">
-                <MessageSquare className="h-6 w-6 text-purple-600 mx-auto mb-2" />
-                <p className="text-sm font-medium text-gray-900">
-                  Chat Interface
-                </p>
-                <p className="text-xs text-gray-600 mt-1">User Experience</p>
-              </div>
-              <div className="p-4 rounded-lg border border-gray-200 bg-gray-50">
-                <Zap className="h-6 w-6 text-amber-600 mx-auto mb-2" />
-                <p className="text-sm font-medium text-gray-900">Real-time</p>
-                <p className="text-xs text-gray-600 mt-1">Responsive</p>
-              </div>
+      <div
+        className="absolute top-8 right-8 cursor-pointer rounded border border-gray-400 px-2 py-1 text-xs"
+        onClick={clearData}
+      >
+        Clear Chat
+      </div>
+
+      <CardContent className="flex-1 flex flex-col overflow-hidden relative pb-1">
+        {/* Scrollable messages container */}
+        <div className="flex-1 overflow-y-auto flex flex-col gap-3 mb-6 pr-2">
+          {messages.map((msg, idx) => (
+            <div
+              key={idx}
+              className={`p-3 rounded-lg max-w-xl ${
+                msg.role === "user"
+                  ? "bg-blue-500 text-white self-end"
+                  : "bg-gray-200 text-gray-800 self-start"
+              }`}
+            >
+              {msg.content}
             </div>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+          ))}
+          <div ref={messagesEndRef} /> {/* Dummy div to scroll into */}
+        </div>
+
+        <hr />
+
+        {/* Fixed input form */}
+        <form onSubmit={handleSubmit} className="flex gap-3 pt-5">
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            className="flex-1 p-2 pl-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 tracking-tight"
+            placeholder="Type your message..."
+          />
+          <button
+            type="submit"
+            disabled={mutation.isPending}
+            className="bg-blue-500 text-white px-4 py-2 rounded-lg disabled:opacity-50"
+          >
+            {mutation.isPending ? "Sending..." : "Send"}
+          </button>
+        </form>
+      </CardContent>
+    </Card>
   );
 }

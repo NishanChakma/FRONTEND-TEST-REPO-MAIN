@@ -42,6 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch (error) {
         console.error("Auth check failed", error);
         localStorage.removeItem("token");
+        localStorage.removeItem("chatMessages");
         setUser(null);
       } finally {
         setLoading(false); // <-- always runs even if error or timeout
@@ -60,6 +61,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = () => {
     localStorage.removeItem("token");
+    localStorage.removeItem("chatMessages");
     setUser(null);
     router.push("/login");
   };
