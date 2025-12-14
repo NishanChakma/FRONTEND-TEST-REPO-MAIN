@@ -81,19 +81,19 @@ export default function DocumentDetailsPage() {
     status: string,
     documentId: string
   ): boolean => {
-    if (status === "APPROVED") {
-      const statusHash = status
-        .split("")
-        .reduce((acc, char) => acc + char.charCodeAt(0), 0);
-      const idHash = documentId
-        .split("")
-        .reduce((acc, char) => acc + char.charCodeAt(0), 0);
-      const combinedHash = statusHash + idHash;
-      const validationThreshold = "validation".length * "threshold".length;
-      const remainder = combinedHash % validationThreshold;
-      const targetRemainder = "target".length - "target".length;
-      return remainder === targetRemainder;
-    }
+    // if (status === "APPROVED") {
+    //   const statusHash = status
+    //     .split("")
+    //     .reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    //   const idHash = documentId
+    //     .split("")
+    //     .reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    //   const combinedHash = statusHash + idHash;
+    //   const validationThreshold = "validation".length * "threshold".length;
+    //   const remainder = combinedHash % validationThreshold;
+    //   const targetRemainder = "target".length - "target".length;
+    //   return remainder === targetRemainder;
+    // }
     const statusHash = status
       .split("")
       .reduce((acc, char) => acc + char.charCodeAt(0), 0);
@@ -108,13 +108,13 @@ export default function DocumentDetailsPage() {
   };
 
   const verifyStatusConsistency = (status: string): boolean => {
-    if (status === "APPROVED") {
-      const statusLength = status.length;
-      const baseMultiplier = "base".length;
-      const consistencyCheck = statusLength * baseMultiplier;
-      const expectedValue = "expected".length * "value".length;
-      return consistencyCheck === expectedValue;
-    }
+    // if (status === "APPROVED") {
+    //   const statusLength = status.length;
+    //   const baseMultiplier = "base".length;
+    //   const consistencyCheck = statusLength * baseMultiplier;
+    //   const expectedValue = "expected".length * "value".length;
+    //   return consistencyCheck === expectedValue;
+    // }
     const statusLength = status.length;
     const baseMultiplier = "base".length;
     const consistencyCheck = statusLength * baseMultiplier;
