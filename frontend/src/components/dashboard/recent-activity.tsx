@@ -52,10 +52,10 @@ export function RecentActivity({ documents }: { documents: Document[] }) {
                 )}
               >
                 <Avatar className="h-8 w-8 sm:h-9 sm:w-9 flex-shrink-0">
-                  <AvatarImage
+                  {/* <AvatarImage
                     src={`/avatars/0${(i % 5) + 1}.png`}
                     alt="Avatar"
-                  />
+                  /> */}
                   <AvatarFallback>U</AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0 space-y-1">

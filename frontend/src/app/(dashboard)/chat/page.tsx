@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   Card,
@@ -19,19 +19,16 @@ import {
 import { AIModelType } from "@/types";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { handlePDF } from "@/lib/handlePDF";
 
 type Message = {
   role: "user" | "assistant";
   content: string;
 };
 
-type Document = {
-  title: string;
-  type: string;
-  fund?: {
-    name?: string;
-    code?: string;
-  } | null;
+type DocumentOption = {
+  label: string;
+  value: string;
 };
 
 const dropdownOptions = Object.keys(AIModelType).map((key) => ({
@@ -44,14 +41,15 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [typeFilter, setTypeFilter] = useState("openai/gpt-oss-20b:free");
   const [selectedDoc, setSelectedDoc] = useState("");
-  const messagesEndRef = useRef<HTMLDivElement | null>(null); // Ref for auto-scrolling
+  const [docText, setDocText] = useState("");
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
-  // Auto-scroll effect
+  // Auto Scroll to last message
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Load messages from localStorage on component mount
+  // Load Chat History
   useEffect(() => {
     const savedMessages = localStorage.getItem("chatMessages");
     if (savedMessages) {
@@ -59,19 +57,16 @@ export default function ChatPage() {
     }
   }, []);
 
-  // get documents data
-  const { data: documents, isLoading } = useQuery<Document[]>({
-    queryKey: ["documents", "all", "all"],
+  //  Documents Query
+  const { data: documents, isLoading } = useQuery<DocumentOption[]>({
+    queryKey: ["documents"],
     queryFn: async () => {
       try {
         const { data } = await api.get(`/documents`);
-        const transformed = data.map((item: Document) => ({
-          ...item,
+        return data.map((item: any) => ({
           label: item.title,
-          value: `What do you know about fund name: ${item?.fund?.name}, code: ${item?.fund?.code}, title: ${item?.type}`,
+          value: item.id,
         }));
-
-        return transformed;
       } catch (err: any) {
         toast.error(err.response?.data?.message || "Failed to load documents");
         throw err;
@@ -80,11 +75,24 @@ export default function ChatPage() {
     retry: 1,
   });
 
-  const mutation = useMutation<string, Error, string>({
-    mutationFn: async (userMessage: string) => {
+  // Chat Mutation
+  const mutation = useMutation<
+    string,
+    Error,
+    { message: string; docText: string }
+  >({
+    mutationFn: async ({ message, docText }) => {
       const body = {
         model: typeFilter,
-        messages: [...messages, { role: "user", content: userMessage }],
+        messages: [
+          ...messages,
+          {
+            role: "user",
+            content: docText
+              ? `PDF Content:\n${docText}\n\nQuestion:\n${message}`
+              : message,
+          },
+        ],
         temperature: 0.7,
         max_tokens: 500,
       };
@@ -100,30 +108,48 @@ export default function ChatPage() {
       const data = await res.json();
       return data?.choices?.[0]?.message?.content || "No response";
     },
-    onSuccess: (assistantMessage, userMessage) => {
+
+    onSuccess: (assistantMessage, variables) => {
       const updatedMessages: Message[] = [
         ...messages,
-        { role: "user", content: userMessage },
+        { role: "user", content: variables.message },
         { role: "assistant", content: assistantMessage },
       ];
 
       setMessages(updatedMessages);
-
-      // Save the updated messages to localStorage
       localStorage.setItem("chatMessages", JSON.stringify(updatedMessages));
     },
   });
 
+  // Load PDF Text
+  useEffect(() => {
+    if (!selectedDoc) return;
+
+    setDocText("");
+    handlePDF(selectedDoc)
+      .then((res) => setDocText(res))
+      .catch(() => toast.error("Failed to load document"));
+  }, [selectedDoc]);
+
+  // Handlers/submit button
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
-    mutation.mutate(input);
+
+    mutation.mutate({
+      message: input,
+      docText,
+    });
+
     setInput("");
+    setDocText("");
   };
 
   const clearData = useCallback(() => {
     localStorage.removeItem("chatMessages");
     setMessages([]);
+    setSelectedDoc("");
+    setDocText("");
   }, []);
 
   return (
@@ -136,12 +162,13 @@ export default function ChatPage() {
         <CardDescription className="text-sm mb-1">
           Chat with an AI assistant.
         </CardDescription>
+
         <div className="flex flex-wrap gap-4">
           <div className="flex gap-2 items-center">
             <p className="text-sm">AI Model</p>
             <Select value={typeFilter} onValueChange={setTypeFilter}>
               <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Filter by Type" />
+                <SelectValue placeholder="Select Model" />
               </SelectTrigger>
               <SelectContent>
                 {dropdownOptions.map((option) => (
@@ -153,25 +180,23 @@ export default function ChatPage() {
             </Select>
           </div>
 
-          <div className="flex gap-2 items-center">
-            {!isLoading && (
-              <>
-                <p className="text-sm">Document</p>
-                <Select value={selectedDoc} onValueChange={setSelectedDoc}>
-                  <SelectTrigger className="w-[200px]">
-                    <SelectValue placeholder="Select Document" />
-                  </SelectTrigger>
-                  <SelectContent style={{ height: 300 }}>
-                    {(documents ?? []).map((option: any, i) => (
-                      <SelectItem key={i} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </>
-            )}
-          </div>
+          {!isLoading && (
+            <div className="flex gap-2 items-center">
+              <p className="text-sm">Document</p>
+              <Select value={selectedDoc} onValueChange={setSelectedDoc}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Select Document" />
+                </SelectTrigger>
+                <SelectContent style={{ height: 300 }}>
+                  {(documents ?? []).map((doc) => (
+                    <SelectItem key={doc.value} value={doc.value}>
+                      {doc.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
       </CardHeader>
 
@@ -182,8 +207,7 @@ export default function ChatPage() {
         Clear Chat
       </div>
 
-      <CardContent className="flex-1 flex flex-col overflow-hidden relative pb-1">
-        {/* Scrollable messages container */}
+      <CardContent className="flex-1 flex flex-col overflow-hidden pb-1">
         <div className="flex-1 overflow-y-auto flex flex-col gap-3 mb-6 pr-2">
           {messages.map((msg, idx) => (
             <div
@@ -197,18 +221,17 @@ export default function ChatPage() {
               {msg.content}
             </div>
           ))}
-          <div ref={messagesEndRef} /> {/* Dummy div to scroll into */}
+          <div ref={messagesEndRef} />
         </div>
 
         <hr />
 
-        {/* Fixed input form */}
         <form onSubmit={handleSubmit} className="flex gap-3 pt-5">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            className="flex-1 p-2 pl-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 tracking-tight"
+            className="flex-1 p-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400"
             placeholder="Type your message..."
           />
           <button

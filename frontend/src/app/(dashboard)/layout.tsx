@@ -136,7 +136,7 @@ export default function DashboardLayout({
         <div className="p-4 border-t border-gray-200 dark:border-gray-800 space-y-3">
           <div className="flex items-center gap-3 px-3 py-2">
             <Avatar className="h-9 w-9 border border-gray-200 dark:border-gray-700">
-              <AvatarImage src="/avatars/01.png" alt={user.name} />
+              {/* <AvatarImage src="/avatars/01.png" alt={user.name} /> */}
               <AvatarFallback className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
                 {user.name?.charAt(0) || "U"}
               </AvatarFallback>
