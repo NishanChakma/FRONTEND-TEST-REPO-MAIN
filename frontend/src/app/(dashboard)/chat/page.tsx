@@ -106,7 +106,10 @@ export default function ChatPage() {
       if (!res.ok) throw new Error("API request failed");
 
       const data = await res.json();
-      return data?.choices?.[0]?.message?.content || "No response";
+      const response = data?.choices?.[0]?.message;
+      return response?.content?.trim()
+        ? response.content
+        : response?.reasoning ?? "No response";
     },
 
     onSuccess: (assistantMessage, variables) => {
@@ -142,6 +145,7 @@ export default function ChatPage() {
     });
 
     setInput("");
+    setSelectedDoc("");
     setDocText("");
   };
 
